@@ -32,13 +32,13 @@ PRESET_STATUSES = ["✅ На работе", "🏠 Дома", "🌴 В отпус
 
 # Подключение к БД
 def get_db_connection():
-    DATABASE_URL = os.environ.get('DATABASE_URL')
-    if not DATABASE_URL:
-        raise ValueError("Переменная окружения DATABASE_URL не задана!")
-    if DATABASE_URL.startswith("postgres://"):
-        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-    return psycopg2.connect(DATABASE_URL, sslmode='require')
-
+    import psycopg2
+    return psycopg2.connect(
+        host="localhost",
+        database="statusbot",
+        user="botuser",
+        password="secure_password"
+    )
 # Инициализация БД
 def init_db():
     conn = get_db_connection()
