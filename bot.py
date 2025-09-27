@@ -35,8 +35,6 @@ def get_db_connection():
     DATABASE_URL = os.environ.get('DATABASE_URL')
     if not DATABASE_URL:
         raise ValueError("Переменная окружения DATABASE_URL не задана!")
-    # Render даёт URL вида: postgres://user:pass@host:port/dbname
-    # psycopg2 требует postgresql://
     if DATABASE_URL.startswith("postgres://"):
         DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
     return psycopg2.connect(DATABASE_URL, sslmode='require')
@@ -66,7 +64,7 @@ def init_db():
     cur.close()
     conn.close()
 
-# Остальные функции работы с БД
+# Функции работы с БД
 def add_user(user_id, username, chat_id):
     conn = get_db_connection()
     cur = conn.cursor()
@@ -121,7 +119,18 @@ def get_today_statuses(chat_id):
     conn.close()
     return [(row['username'], row['status_text']) for row in result]
 
-# Обработчики команд и сообщений (остаются почти без изменений)
+# Обработчики
+async def test_db(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT 1")
+        await update.message.reply_text("✅ Подключение к БД успешно!")
+        cur.close()
+        conn.close()
+    except Exception as e:
+        await update.message.reply_text(f"❌ Ошибка подключения: {e}")
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     chat_id = update.effective_chat.id
@@ -150,18 +159,13 @@ async def toggle(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def status_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
-    user = update.effective_user
-    chat_id = update.effective_chat.id
-
     if text == "✏️ Написать свой":
         await update.message.reply_text("Напиши свой статус:", reply_markup=ReplyKeyboardRemove())
         return TYPING_REPLY
-
     if text in PRESET_STATUSES:
-        save_status(user.id, chat_id, text)
+        save_status(update.effective_user.id, update.effective_chat.id, text)
         await update.message.reply_text("Статус сохранён! ✅", reply_markup=ReplyKeyboardRemove())
         return ConversationHandler.END
-
     keyboard = [[status] for status in PRESET_STATUSES] + [["✏️ Написать свой"]]
     reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
     await update.message.reply_text("Пожалуйста, выбери статус из кнопок:", reply_markup=reply_markup)
@@ -208,9 +212,10 @@ async def post_init(application: Application) -> None:
     scheduler.start()
     logger.info("Планировщик запущен")
 
+# Основная функция
 def main():
     init_db()
-    TOKEN = os.environ.get('8031166633:AAFWWZ8C6cAvns6wS3EvjpRZ1pOIiyzzOvo')
+    TOKEN = os.environ.get('TELEGRAM_TOKEN')
     if not TOKEN:
         raise ValueError("Переменная окружения TELEGRAM_TOKEN не задана!")
     
@@ -227,9 +232,11 @@ def main():
         per_user=True
     )
 
+    # Все хендлеры — внутри main()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("toggle", toggle))
     application.add_handler(CommandHandler("status", show_status))
+    application.add_handler(CommandHandler("testdb", test_db))  # ✅ Правильно здесь
     application.add_handler(conv_handler)
 
     application.run_polling()
