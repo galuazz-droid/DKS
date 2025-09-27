@@ -37,7 +37,7 @@ def get_db_connection():
         host="localhost",
         database="statusbot",
         user="botuser",
-        password="secure_password"
+        password="eZ9wWw49H_8*wC"
     )
 # Инициализация БД
 def init_db():
