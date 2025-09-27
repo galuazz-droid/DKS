@@ -137,8 +137,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     add_user(user.id, user.username or user.first_name, chat_id)
     await update.message.reply_text(
         f"Привет, {user.first_name}! Ты добавлен в список опроса.\n"
-        "Каждый день в 10:00 я буду спрашивать твой статус.\n"
-        "Используй /status чтобы посмотреть статусы участников сегодня."
+        "Каждый день в 9:00 я буду спрашивать твой статус.\n"
+        "Используй /status чтобы посмотреть статусы участников сегодня.\n"
+        "Используй /setstatus чтобы обновить статус в любое время."
     )
 
 async def toggle(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -156,6 +157,13 @@ async def toggle(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"Твой статус опроса {status_text}.")
     else:
         await update.message.reply_text("Сначала отправь /start.")
+
+async def set_status_manually(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Команда /setstatus — внеплановая установка статуса."""
+    keyboard = [[status] for status in PRESET_STATUSES] + [["✏️ Написать свой"]]
+    reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+    await update.message.reply_text("Выбери или напиши свой статус:", reply_markup=reply_markup)
+    return CHOOSING
 
 async def status_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
@@ -208,21 +216,23 @@ async def send_daily_poll_to_all_chats(application: Application):
 
 async def post_init(application: Application) -> None:
     scheduler = AsyncIOScheduler(timezone=pytz.timezone('Europe/Moscow'))
-    scheduler.add_job(send_daily_poll_to_all_chats, 'cron', hour=10, minute=0, args=[application])
+    scheduler.add_job(send_daily_poll_to_all_chats, 'cron', hour=9, minute=0, args=[application])
     scheduler.start()
-    logger.info("Планировщик запущен")
+    logger.info("Планировщик запущен: ежедневный опрос в 9:00")
 
-# Основная функция
 def main():
     init_db()
     TOKEN = os.environ.get('TELEGRAM_TOKEN')
     if not TOKEN:
         raise ValueError("Переменная окружения TELEGRAM_TOKEN не задана!")
-    
+
     application = Application.builder().token(TOKEN).post_init(post_init).build()
 
     conv_handler = ConversationHandler(
-        entry_points=[MessageHandler(filters.TEXT & ~filters.COMMAND, status_chosen)],
+        entry_points=[
+            MessageHandler(filters.TEXT & ~filters.COMMAND, status_chosen),
+            CommandHandler("setstatus", set_status_manually),
+        ],
         states={
             CHOOSING: [MessageHandler(filters.TEXT & ~filters.COMMAND, status_chosen)],
             TYPING_REPLY: [MessageHandler(filters.TEXT & ~filters.COMMAND, custom_status)],
@@ -232,11 +242,10 @@ def main():
         per_user=True
     )
 
-    # Все хендлеры — внутри main()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("toggle", toggle))
     application.add_handler(CommandHandler("status", show_status))
-    application.add_handler(CommandHandler("testdb", test_db))  # ✅ Правильно здесь
+    application.add_handler(CommandHandler("testdb", test_db))
     application.add_handler(conv_handler)
 
     application.run_polling()
