@@ -1,5 +1,4 @@
 import logging
-import os
 import sys
 from datetime import date
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
@@ -30,15 +29,15 @@ CHOOSING, TYPING_REPLY = range(2)
 # Предустановленные статусы
 PRESET_STATUSES = ["✅ На работе", "🏠 Дома", "🌴 В отпуске", "🤒 Болею", "✈️ В командировке"]
 
-# Подключение к БД
+# Подключение к локальной PostgreSQL
 def get_db_connection():
-    import psycopg2
     return psycopg2.connect(
         host="localhost",
         database="statusbot",
         user="botuser",
-        password="eZ9wWw49H_8*wC"
+        password="secure_password"  # ← пароль от PostgreSQL-пользователя
     )
+
 # Инициализация БД
 def init_db():
     conn = get_db_connection()
@@ -159,7 +158,6 @@ async def toggle(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Сначала отправь /start.")
 
 async def set_status_manually(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Команда /setstatus — внеплановая установка статуса."""
     keyboard = [[status] for status in PRESET_STATUSES] + [["✏️ Написать свой"]]
     reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
     await update.message.reply_text("Выбери или напиши свой статус:", reply_markup=reply_markup)
@@ -222,9 +220,8 @@ async def post_init(application: Application) -> None:
 
 def main():
     init_db()
-    TOKEN = os.environ.get('TELEGRAM_TOKEN')
-    if not TOKEN:
-        raise ValueError("Переменная окружения TELEGRAM_TOKEN не задана!")
+    # Токен Telegram-бота — вставьте свой
+    TOKEN = "7252426165:AAGeO7Tfd5SS_aRZT8ySEcm3L2rUTcASZKQ"
 
     application = Application.builder().token(TOKEN).post_init(post_init).build()
 
